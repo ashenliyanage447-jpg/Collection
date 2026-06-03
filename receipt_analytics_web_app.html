@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Receipt Collection Analytics</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root{
+      --bg:#f4f7fb;--card:#ffffff;--text:#1f2937;--muted:#6b7280;--line:#e5e7eb;
+      --primary:#0f766e;--primary2:#14b8a6;--danger:#dc2626;--warn:#d97706;--blue:#2563eb;
+      --shadow:0 12px 30px rgba(15,23,42,.08);--radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:radial-gradient(circle at top left,#d9faf4 0,#f4f7fb 32%,#f7f8fb 100%);color:var(--text)}
+    .app{max-width:1440px;margin:auto;padding:24px}
+    .hero{background:linear-gradient(135deg,#0f766e,#0f172a);color:#fff;border-radius:26px;padding:26px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+    .hero:after{content:"";position:absolute;right:-80px;top:-80px;width:260px;height:260px;background:rgba(255,255,255,.09);border-radius:50%}
+    .hero h1{margin:0 0 8px;font-size:30px;letter-spacing:-.02em}.hero p{margin:0;color:#d1fae5;max-width:850px}
+    .toolbar{display:grid;grid-template-columns:1.4fr repeat(4, minmax(150px,1fr));gap:12px;margin:18px 0}
+    .control,.upload{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:0 8px 20px rgba(15,23,42,.05)}
+    label{display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px}
+    input,select,button{font:inherit} input[type=file],select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff;color:var(--text)}
+    .btns{display:flex;gap:10px;flex-wrap:wrap}.btn{border:0;border-radius:12px;padding:11px 14px;font-weight:700;cursor:pointer;background:var(--primary);color:#fff}.btn.secondary{background:#111827}.btn.light{background:#e8faf6;color:#0f766e}.btn.warn{background:var(--warn)}
+    .status{margin-top:8px;color:var(--muted);font-size:13px}.status.ok{color:var(--primary)}.status.bad{color:var(--danger)}
+    .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin:14px 0}.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+    .kpi .title{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.kpi .value{font-size:24px;font-weight:850;margin-top:8px}.kpi .sub{font-size:12px;color:var(--muted);margin-top:4px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);min-height:320px}.card.wide{grid-column:1/-1}.card h3{margin:0 0 12px;font-size:16px}.chartBox{height:290px}.chartBox.tall{height:360px}
+    .insights{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:14px 0}.insight{background:#fff;border-left:5px solid var(--primary2);border-radius:14px;padding:14px;box-shadow:0 8px 18px rgba(15,23,42,.05)}.insight b{display:block;margin-bottom:4px}.insight span{font-size:13px;color:var(--muted)}
+    table{width:100%;border-collapse:collapse;font-size:13px} th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap} th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#475569;background:#f8fafc;position:sticky;top:0;z-index:1} td.num{text-align:right;font-variant-numeric:tabular-nums}.tableWrap{max-height:440px;overflow:auto;border:1px solid var(--line);border-radius:14px}.neg{color:var(--danger);font-weight:700}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-weight:700;font-size:11px}.badge.red{background:#fee2e2;color:#991b1b}.badge.green{background:#d1fae5;color:#065f46}
+    .empty{background:#fff;border:2px dashed #cbd5e1;border-radius:20px;padding:36px;text-align:center;color:var(--muted);margin-top:18px}.hidden{display:none!important}
+    @media(max-width:1100px){.toolbar{grid-template-columns:1fr 1fr}.kpis{grid-template-columns:repeat(3,1fr)}.grid,.insights{grid-template-columns:1fr}} @media(max-width:700px){.app{padding:12px}.toolbar,.kpis{grid-template-columns:1fr}.hero h1{font-size:24px}}
+    @media print{body{background:#fff}.toolbar,.btns,.upload,.noPrint{display:none!important}.app{max-width:none;padding:0}.hero{box-shadow:none;border-radius:0}.card,.kpi,.insight{box-shadow:none;break-inside:avoid}.tableWrap{max-height:none;overflow:visible}.grid{display:block}.card{margin:12px 0}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="hero">
+      <h1>Daily Receipt Collection Analytics Dashboard</h1>
+      <p>Upload the Daily Receipt Collection Excel report and view branch-wise, date-wise, receipt type, exception, and performance analytics instantly.</p>
+    </section>
+
+    <section class="toolbar">
+      <div class="upload">
+        <label>Upload Excel File (.xlsx / .xls)</label>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" />
+        <div id="status" class="status">Waiting for Excel upload...</div>
+      </div>
+      <div class="control"><label>From Date</label><input type="date" id="fromDate" /></div>
+      <div class="control"><label>To Date</label><input type="date" id="toDate" /></div>
+      <div class="control"><label>Branch</label><select id="branchFilter"><option value="ALL">All branches</option></select></div>
+      <div class="control"><label>Search</label><input type="text" id="searchBox" placeholder="Branch / date" /></div>
+    </section>
+
+    <div class="btns noPrint">
+      <button class="btn" onclick="applyFilters()">Apply Filters</button>
+      <button class="btn light" onclick="resetFilters()">Reset</button>
+      <button class="btn secondary" onclick="exportCSV()">Export Filtered CSV</button>
+      <button class="btn warn" onclick="window.print()">Print / Save PDF Report</button>
+    </div>
+
+    <div id="empty" class="empty">
+      <h2>Upload your Excel report to start</h2>
+      <p>This app is prepared for the same format as your uploaded file: Branch, Date, Cash Receipt, Chq Receipt, DDCash and DDChq.</p>
+    </div>
+
+    <main id="dashboard" class="hidden">
+      <section class="kpis">
+        <div class="kpi"><div class="title">Total Collection</div><div class="value" id="kpiTotal">0</div><div class="sub">Cash + Chq + DD</div></div>
+        <div class="kpi"><div class="title">Cash Receipt</div><div class="value" id="kpiCash">0</div><div class="sub" id="cashShare">0%</div></div>
+        <div class="kpi"><div class="title">Cheque Receipt</div><div class="value" id="kpiChq">0</div><div class="sub" id="chqShare">0%</div></div>
+        <div class="kpi"><div class="title">DD Cash</div><div class="value" id="kpiDDCash">0</div><div class="sub" id="ddCashShare">0%</div></div>
+        <div class="kpi"><div class="title">DD Cheque</div><div class="value" id="kpiDDChq">0</div><div class="sub" id="ddChqShare">0%</div></div>
+        <div class="kpi"><div class="title">Active Branches</div><div class="value" id="kpiBranches">0</div><div class="sub" id="kpiRows">0 rows</div></div>
+      </section>
+
+      <section class="insights">
+        <div class="insight"><b id="topBranch">Top Branch: -</b><span id="topBranchSub">Highest collection branch</span></div>
+        <div class="insight"><b id="topDay">Top Day: -</b><span id="topDaySub">Highest collection date</span></div>
+        <div class="insight"><b id="exceptions">Exceptions: -</b><span>Negative / reversal values detected</span></div>
+      </section>
+
+      <section class="grid">
+        <div class="card"><h3>Daily Collection Trend</h3><div class="chartBox"><canvas id="dailyChart"></canvas></div></div>
+        <div class="card"><h3>Receipt Type Mix</h3><div class="chartBox"><canvas id="mixChart"></canvas></div></div>
+        <div class="card"><h3>Top 15 Branches by Collection</h3><div class="chartBox tall"><canvas id="branchChart"></canvas></div></div>
+        <div class="card"><h3>Cash vs Cheque vs DD by Date</h3><div class="chartBox tall"><canvas id="stackChart"></canvas></div></div>
+        <div class="card wide"><h3>Branch Performance Summary</h3><div class="tableWrap"><table id="branchTable"></table></div></div>
+        <div class="card wide"><h3>Negative / Reversal / Exception Rows</h3><div class="tableWrap"><table id="exceptionTable"></table></div></div>
+        <div class="card wide"><h3>Detailed Transaction Listing</h3><div class="tableWrap"><table id="detailTable"></table></div></div>
+      </section>
+    </main>
+  </div>
+
+<script>
+let rawRows = [];
+let filteredRows = [];
+let charts = {};
+const moneyFmt = new Intl.NumberFormat('en-LK', {maximumFractionDigits:2});
+
+const els = {
+  fileInput: document.getElementById('fileInput'), status: document.getElementById('status'), empty: document.getElementById('empty'), dash: document.getElementById('dashboard'),
+  fromDate: document.getElementById('fromDate'), toDate: document.getElementById('toDate'), branchFilter: document.getElementById('branchFilter'), searchBox: document.getElementById('searchBox')
+};
+
+els.fileInput.addEventListener('change', handleFile);
+['change','keyup'].forEach(ev => { els.branchFilter.addEventListener(ev, applyFilters); els.searchBox.addEventListener(ev, applyFilters); els.fromDate.addEventListener(ev, applyFilters); els.toDate.addEventListener(ev, applyFilters); });
+
+function handleFile(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  setStatus('Reading Excel file...', '');
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try{
+      const data = new Uint8Array(evt.target.result);
+      const wb = XLSX.read(data, {type:'array', cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const arr = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''});
+      rawRows = parseReceiptReport(arr);
+      if(!rawRows.length) throw new Error('No valid receipt rows were found. Please check the Excel format.');
+      initFilters(rawRows);
+      applyFilters();
+      els.empty.classList.add('hidden'); els.dash.classList.remove('hidden');
+      setStatus(`Loaded ${rawRows.length} analytical rows from ${file.name}`, 'ok');
+    }catch(err){ console.error(err); setStatus(err.message, 'bad'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseReceiptReport(arr){
+  const headerIndex = arr.findIndex(r => r.some(c => clean(c).toLowerCase()==='branch') && r.some(c => clean(c).toLowerCase()==='date'));
+  if(headerIndex < 0) throw new Error('Could not detect the header row with Branch and Date columns.');
+  const header = arr[headerIndex].map(clean);
+  const col = name => header.findIndex(h => h.toLowerCase().replace(/\s+/g,'') === name.toLowerCase().replace(/\s+/g,''));
+  const branchCol = col('Branch'), dateCol = col('Date'), cashCol = col('Cash Receipt'), chqCol = col('Chq Receipt'), ddCashCol = col('DDCash'), ddChqCol = col('DDChq');
+  if([branchCol,dateCol,cashCol,chqCol,ddCashCol,ddChqCol].some(i => i < 0)) throw new Error('Required columns not found: Branch, Date, Cash Receipt, Chq Receipt, DDCash, DDChq.');
+
+  let branch = '', date = '', output = [];
+  for(let i=headerIndex+1; i<arr.length; i++){
+    const r = arr[i] || [];
+    const branchCell = clean(r[branchCol]);
+    const dateCell = toISODate(r[dateCol]);
+    const next = arr[i+1] || [];
+    const nextBranch = clean(next[branchCol]);
+    const isNewBranch = branchCell && !looksLikeNumber(branchCell) && !isDateLike(branchCell);
+    if(isNewBranch) branch = branchCell;
+    if(dateCell) date = dateCell;
+
+    const vals = {
+      cash: toNumber(r[cashCol]), chq: toNumber(r[chqCol]), ddCash: toNumber(r[ddCashCol]), ddChq: toNumber(r[ddChqCol])
+    };
+    const hasAmount = Object.values(vals).some(v => Math.abs(v) > 0.00001);
+    if(!branch || !date || !hasAmount) continue;
+
+    // In this report, blank-date row immediately before next branch is normally the branch total row. Exclude it to avoid double counting.
+    const possibleBranchTotal = !dateCell && nextBranch && !looksLikeNumber(nextBranch);
+    if(possibleBranchTotal) continue;
+
+    const total = vals.cash + vals.chq + vals.ddCash + vals.ddChq;
+    output.push({ branch, date, ...vals, total, sourceRow:i+1, continuation: !dateCell });
+  }
+  return output;
+}
+
+function initFilters(rows){
+  const dates = [...new Set(rows.map(r=>r.date))].sort();
+  els.fromDate.value = dates[0] || ''; els.toDate.value = dates[dates.length-1] || '';
+  const branches = [...new Set(rows.map(r=>r.branch))].sort();
+  els.branchFilter.innerHTML = '<option value="ALL">All branches</option>' + branches.map(b=>`<option>${escapeHtml(b)}</option>`).join('');
+}
+
+function applyFilters(){
+  if(!rawRows.length) return;
+  const from = els.fromDate.value, to = els.toDate.value, branch = els.branchFilter.value, q = els.searchBox.value.trim().toLowerCase();
+  filteredRows = rawRows.filter(r => (!from || r.date >= from) && (!to || r.date <= to) && (branch==='ALL' || r.branch===branch) && (!q || r.branch.toLowerCase().includes(q) || r.date.includes(q)));
+  renderDashboard(filteredRows);
+}
+
+function resetFilters(){
+  if(!rawRows.length) return;
+  initFilters(rawRows); els.searchBox.value=''; applyFilters();
+}
+
+function renderDashboard(rows){
+  const s = summarize(rows);
+  setText('kpiTotal', money(s.total)); setText('kpiCash', money(s.cash)); setText('kpiChq', money(s.chq)); setText('kpiDDCash', money(s.ddCash)); setText('kpiDDChq', money(s.ddChq));
+  setText('cashShare', pct(s.cash, s.total)); setText('chqShare', pct(s.chq, s.total)); setText('ddCashShare', pct(s.ddCash, s.total)); setText('ddChqShare', pct(s.ddChq, s.total));
+  setText('kpiBranches', s.branches); setText('kpiRows', `${rows.length} rows`);
+  const byBranch = groupSum(rows, 'branch'); const byDate = groupSum(rows, 'date');
+  const topB = topItem(byBranch); const topD = topItem(byDate);
+  setText('topBranch', `Top Branch: ${topB.key || '-'}`); setText('topBranchSub', topB.key ? `LKR ${money(topB.total)}` : 'No data');
+  setText('topDay', `Top Day: ${topD.key || '-'}`); setText('topDaySub', topD.key ? `LKR ${money(topD.total)}` : 'No data');
+  const exceptionRows = rows.filter(r => r.cash < 0 || r.chq < 0 || r.ddCash < 0 || r.ddChq < 0 || r.total < 0);
+  setText('exceptions', `Exceptions: ${exceptionRows.length}`);
+  renderCharts(rows, byBranch, byDate);
+  renderBranchTable(byBranch);
+  renderExceptionTable(exceptionRows);
+  renderDetailTable(rows);
+}
+
+function renderCharts(rows, byBranch, byDate){
+  const dates = Object.keys(byDate).sort();
+  const topBranches = Object.entries(byBranch).sort((a,b)=>b[1].total-a[1].total).slice(0,15);
+  makeChart('dailyChart','line', { labels:dates, datasets:[{label:'Total Collection', data:dates.map(d=>byDate[d].total), tension:.35, fill:true}] }, {plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:compact}}}});
+  makeChart('mixChart','doughnut', { labels:['Cash Receipt','Chq Receipt','DDCash','DDChq'], datasets:[{data:[sum(rows,'cash'),sum(rows,'chq'),sum(rows,'ddCash'),sum(rows,'ddChq')]}] }, {plugins:{legend:{position:'bottom'}}});
+  makeChart('branchChart','bar', { labels:topBranches.map(x=>x[0]), datasets:[{label:'Total', data:topBranches.map(x=>x[1].total)}] }, {indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{ticks:{callback:compact}}}});
+  makeChart('stackChart','bar', { labels:dates, datasets:[
+    {label:'Cash', data:dates.map(d=>byDate[d].cash)}, {label:'Chq', data:dates.map(d=>byDate[d].chq)}, {label:'DDCash', data:dates.map(d=>byDate[d].ddCash)}, {label:'DDChq', data:dates.map(d=>byDate[d].ddChq)}
+  ] }, {plugins:{legend:{position:'bottom'}}, scales:{x:{stacked:true}, y:{stacked:true, ticks:{callback:compact}}}});
+}
+
+function renderBranchTable(byBranch){
+  const rows = Object.entries(byBranch).sort((a,b)=>b[1].total-a[1].total);
+  const html = table(['Rank','Branch','Cash','Chq','DDCash','DDChq','Total','Rows'], rows.map(([b,v],i)=>[i+1,b,money(v.cash),money(v.chq),money(v.ddCash),money(v.ddChq),money(v.total),v.rows]));
+  document.getElementById('branchTable').innerHTML = html;
+}
+function renderExceptionTable(rows){
+  const html = table(['Branch','Date','Cash','Chq','DDCash','DDChq','Total','Excel Row'], rows.map(r=>[r.branch,r.date,fmtCell(r.cash),fmtCell(r.chq),fmtCell(r.ddCash),fmtCell(r.ddChq),fmtCell(r.total),r.sourceRow]));
+  document.getElementById('exceptionTable').innerHTML = html || '<tr><td>No exception rows found.</td></tr>';
+}
+function renderDetailTable(rows){
+  const sorted = [...rows].sort((a,b)=>a.date.localeCompare(b.date)||a.branch.localeCompare(b.branch));
+  const html = table(['Branch','Date','Cash Receipt','Chq Receipt','DDCash','DDChq','Total','Type','Excel Row'], sorted.map(r=>[r.branch,r.date,fmtCell(r.cash),fmtCell(r.chq),fmtCell(r.ddCash),fmtCell(r.ddChq),fmtCell(r.total),r.continuation?'<span class="badge">Continuation</span>':'<span class="badge green">Date Row</span>',r.sourceRow]));
+  document.getElementById('detailTable').innerHTML = html;
+}
+
+function summarize(rows){return {cash:sum(rows,'cash'), chq:sum(rows,'chq'), ddCash:sum(rows,'ddCash'), ddChq:sum(rows,'ddChq'), total:sum(rows,'total'), branches:new Set(rows.map(r=>r.branch)).size};}
+function groupSum(rows, key){ const out={}; rows.forEach(r=>{ const k=r[key]; if(!out[k]) out[k]={cash:0,chq:0,ddCash:0,ddChq:0,total:0,rows:0}; ['cash','chq','ddCash','ddChq','total'].forEach(f=>out[k][f]+=r[f]); out[k].rows++; }); return out; }
+function topItem(group){ const e = Object.entries(group).sort((a,b)=>b[1].total-a[1].total)[0]; return e ? {key:e[0], total:e[1].total} : {key:'',total:0}; }
+function sum(rows, f){ return rows.reduce((a,r)=>a+(Number(r[f])||0),0); }
+function makeChart(id,type,data,options={}){ if(charts[id]) charts[id].destroy(); charts[id] = new Chart(document.getElementById(id), {type,data,options:{responsive:true,maintainAspectRatio:false,...options}}); }
+function table(headers, rows){ if(!rows.length) return ''; return '<thead><tr>'+headers.map(h=>`<th>${h}</th>`).join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map((c,i)=>`<td class="${String(c).includes('neg')||Number(String(c).replace(/,/g,''))<0?'neg':''} ${i>1?'num':''}">${c}</td>`).join('')+'</tr>').join('')+'</tbody>'; }
+function fmtCell(n){ return n < 0 ? `<span class="neg">${money(n)}</span>` : money(n); }
+function exportCSV(){ if(!filteredRows.length) return alert('No data to export'); const headers=['Branch','Date','Cash Receipt','Chq Receipt','DDCash','DDChq','Total','Excel Row']; const csv=[headers.join(',')].concat(filteredRows.map(r=>[r.branch,r.date,r.cash,r.chq,r.ddCash,r.ddChq,r.total,r.sourceRow].map(csvSafe).join(','))).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='filtered_receipt_analytics.csv'; a.click(); }
+function csvSafe(v){ const s=String(v??''); return /[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s; }
+function clean(v){ return String(v ?? '').replace(/\s+/g,' ').trim(); }
+function toNumber(v){ if(v === '' || v === null || v === undefined) return 0; if(typeof v === 'number') return v; const n = Number(String(v).replace(/,/g,'').trim()); return isNaN(n)?0:n; }
+function toISODate(v){ if(!v) return ''; if(v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10); if(typeof v === 'number'){ const d = XLSX.SSF.parse_date_code(v); if(d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`; } const s=String(v).trim(); const d=new Date(s); return isNaN(d)?'':d.toISOString().slice(0,10); }
+function isDateLike(v){ return !!toISODate(v); } function looksLikeNumber(v){ return !isNaN(Number(String(v).replace(/,/g,''))); }
+function money(n){ return moneyFmt.format(n||0); } function compact(v){ const n=Number(v); if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+'M'; if(Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+'K'; return n; }
+function pct(v,t){ return t ? (v/t*100).toFixed(1)+'% of total' : '0% of total'; } function setText(id,val){ document.getElementById(id).textContent = val; }
+function setStatus(msg, cls){ els.status.textContent=msg; els.status.className='status '+cls; } function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+</script>
+</body>
+</html>
